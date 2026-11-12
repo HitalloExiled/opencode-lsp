@@ -70,6 +70,7 @@ Optional settings use the object form of the plugin entry:
         "diagnosticsTimeoutMs": 5000,
         "initializeTimeoutMs": 45000,
         "requestTimeoutMs": 15000,
+        "warmupTimeoutMs": 6000,
         "idleShutdownMs": 600000,
         "maxErrorsPerFile": 20,
         "maxOtherFiles": 5,

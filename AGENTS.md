@@ -15,8 +15,8 @@ behaviour V2 dropped:
   diagnostics to `write`/`edit`/`patch`/`apply_patch` results and sets
   `metadata.diagnostics`.
 - **Runtime** — JSON-RPC over stdio (`src/client.ts`), one process per
-  (server, root) in `src/pool.ts`, push + pull diagnostics in
-  `src/diagnostics.ts`.
+  (server, root) in `src/pool.ts`; pull requests live in the pool, the push
+  store and quiet-period wait in `src/diagnostics.ts`.
 
 There is no GUI, no database and no external CLI.
 
@@ -26,14 +26,16 @@ There is no GUI, no database and no external CLI.
 index.ts                 Plugin.define: settings → pool → tools + hook → cleanup
 src/catalog.ts           built-in servers (extensions, root rule, command), languageId map
 src/settings.ts          config reader (JSONC, {env:}/{file:}, precedence, lsp:true/false)
+src/jsonc.ts             JSONC parser (comments, trailing commas, BOM)
 src/protocol.ts          Content-Length framing + limits
 src/client.ts            JSON-RPC stdio client
-src/pool.ts              server pool, roots, document sync, navigation requests
-src/diagnostics.ts       push store + pull diagnostics, settle/stale, merge
+src/pool.ts              server pool, roots, document sync, pull diagnostics, navigation
+src/sync.ts              per-URI queue, document versions, abortable shared work
+src/diagnostics.ts       push store, quiet-period wait, merge of other-file reports
+src/paths.ts             project boundary, symlink-safe reads, tool path resolution
+src/format.ts            locations/hover/symbols/calls/<diagnostics>
 src/tools.ts             the six navigation tools (zod)
 src/hook.ts              execute.after diagnostics + read warm-up
-src/paths.ts             project boundary, symlink-safe reads
-src/format.ts            locations/hover/symbols/calls/<diagnostics>
 test/                    bun tests + scripted fake server
 ```
 
