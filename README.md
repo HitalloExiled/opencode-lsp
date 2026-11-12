@@ -130,11 +130,14 @@ defaults. The server asks for the whole configuration (section `""`), so
 }
 ```
 
-`typescript-language-server` needs a TypeScript that ships `tsserver.js`.
-TypeScript 7.x does not; if the workspace or the global `typescript` is 7.x,
-the server exits with "provides no tsserver.js". Install TypeScript 5.x/6.x
-globally (`npm i -g typescript@5.9`) or in the project; the server falls back
-to a valid global install when the workspace one is unusable.
+`typescript-language-server` drives the classic `tsserver.js`. TypeScript 7.0
+and 7.1 do not ship it; 7.1's new API (`typescript/sync`, `typescript/async`,
+`typescript/ast`, `typescript/fs`, …) is a programmatic compiler API, not the
+tsserver protocol, so it is not usable by `typescript-language-server`. If the
+workspace or the global `typescript` is 7.x, the server exits with "provides no
+tsserver.js". Install TypeScript 5.x/6.x globally (`npm i -g typescript@5.9`)
+or in the project; the server falls back to a valid global install when the
+workspace one is unusable. Using 7.1's native LSP needs a different client.
 
 ### .NET
 
