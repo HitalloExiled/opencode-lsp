@@ -130,6 +130,12 @@ defaults. The server asks for the whole configuration (section `""`), so
 }
 ```
 
+`typescript-language-server` needs a TypeScript that ships `tsserver.js`.
+TypeScript 7.x does not; if the workspace or the global `typescript` is 7.x,
+the server exits with "provides no tsserver.js". Install TypeScript 5.x/6.x
+globally (`npm i -g typescript@5.9`) or in the project; the server falls back
+to a valid global install when the workspace one is unusable.
+
 ### .NET
 
 | ID | Binary | Install |

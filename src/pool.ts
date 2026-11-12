@@ -325,7 +325,21 @@ export class LspPool {
     }
     const capable = clients.filter((client) => client.capabilities[capability]);
     if (capable.length === 0) {
-      throw new Error(`No LSP server for this file supports ${capability}.`);
+      // A running server that lacks the capability is not the whole story: a
+      // server that failed to start explains why navigation is missing.
+      const running = clients.map((client) => `${client.id}: no ${capability}`).join("; ");
+      const unavailable = targets
+        .filter((target) => !this.#entries.get(target.key)?.client?.running)
+        .map(
+          (target) =>
+            `${target.key}: ${this.#entries.get(target.key)?.broken ?? "not running"}`,
+        )
+        .join("; ");
+      throw new Error(
+        `No LSP server for this file supports ${capability}. ${[running, unavailable]
+          .filter(Boolean)
+          .join("; ")}`,
+      );
     }
     const results = await Promise.all(capable.map(send));
     return results.flatMap((result) =>
