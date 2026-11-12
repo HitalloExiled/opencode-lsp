@@ -164,16 +164,59 @@ describe("resolveSettings", () => {
     expect(settings.servers).toEqual([]);
   });
 
+  test("gives the eslint server the settings its language server needs", () => {
+    const globalDir = temp();
+    write(globalDir, "opencode.json", { lsp: { eslint: {} } });
+    const settings = resolveSettings(project(), {}, env(globalDir));
+    cleanup();
+    const eslint = settings.servers.find((server) => server.id === "eslint");
+    expect(eslint?.initialization).toMatchObject({
+      nodePath: null,
+      validate: "probe",
+      problems: { shortenToSingleLine: false },
+      experimental: { useFlatConfig: true },
+      workingDirectory: { mode: "location" },
+    });
+  });
+
+  test("user initialization deep-merges over the eslint defaults", () => {
+    const globalDir = temp();
+    write(globalDir, "opencode.json", {
+      lsp: {
+        eslint: {
+          initialization: {
+            validate: "on",
+            problems: { shortenToSingleLine: true },
+            options: { rulePaths: ["./rules"] },
+          },
+        },
+      },
+    });
+    const settings = resolveSettings(project(), {}, env(globalDir));
+    cleanup();
+    const eslint = settings.servers.find((server) => server.id === "eslint");
+    expect(eslint?.initialization).toMatchObject({
+      nodePath: null,
+      validate: "on",
+      problems: { shortenToSingleLine: true },
+      options: { rulePaths: ["./rules"] },
+    });
+  });
+
   test("resolves options and defaults", () => {
-    const settings = resolveSettings(project(), {
-      diagnostics: false,
-      severities: ["error", "warning", 3],
-      diagnosticsTimeoutMs: 123,
-      warmupTimeoutMs: 456,
-      idleShutdownMs: 0,
-      maxErrorsPerFile: 2,
-      debug: true,
-    }, env(temp()));
+    const settings = resolveSettings(
+      project(),
+      {
+        diagnostics: false,
+        severities: ["error", "warning", 3],
+        diagnosticsTimeoutMs: 123,
+        warmupTimeoutMs: 456,
+        idleShutdownMs: 0,
+        maxErrorsPerFile: 2,
+        debug: true,
+      },
+      env(temp()),
+    );
     cleanup();
     expect(settings.diagnostics).toBe(false);
     expect(settings.severities).toEqual([1, 2, 3]);

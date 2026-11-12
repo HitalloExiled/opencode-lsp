@@ -115,6 +115,21 @@ supports.
 | `svelte` | `svelteserver` | `npm i -g svelte-language-server` |
 | `astro` | `astro-ls` | `npm i -g @astrojs/language-server` |
 
+The `eslint` server needs `eslint` (9 or 10) and a flat config in the project
+(`eslint.config.js`; add `typescript-eslint` to lint TypeScript). The plugin
+already supplies the VS Code defaults the server requires (`nodePath`,
+`problems`, flat config) and uses `validate: "probe"`, so it only lints files a
+project config covers. A server `initialization` object deep-merges over those
+defaults. The server asks for the whole configuration (section `""`), so
+`initialization` is the flat settings object — not `{ "eslint": { ... } }`:
+
+```jsonc
+"eslint": {
+  "command": ["vscode-eslint-language-server", "--stdio"],
+  "initialization": { "validate": "on", "options": { "rulePaths": ["./rules"] } }
+}
+```
+
 ### .NET
 
 | ID | Binary | Install |

@@ -360,7 +360,18 @@ export class LspClient {
   /** Answers `workspace/configuration` from the server's `initialization` options. */
   #section(section: unknown): unknown {
     const settings = this.#options.initialization ?? {};
-    if (typeof section !== "string" || section === "") return settings;
+    if (typeof section !== "string" || section === "") {
+      // A server that asks for the whole configuration (section "") also needs
+      // to know the workspace folder; the ESLint server uses it to find the
+      // config file. Other servers ignore the extra key.
+      return {
+        ...settings,
+        workspaceFolder: settings.workspaceFolder ?? {
+          uri: this.#options.rootUri,
+          name: "workspace",
+        },
+      };
+    }
     let value: any = settings;
     for (const key of section.split(".")) {
       value = value?.[key];

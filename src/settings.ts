@@ -33,6 +33,40 @@ export interface Settings {
 
 const NAMES = ["opencode.json", "opencode.jsonc"] as const;
 
+/**
+ * Server settings that are required in practice but have no protocol default.
+ *
+ * The ESLint language server asks for the whole configuration (section ""),
+ * expects the flat settings object (not a nested `eslint` key), and crashes on
+ * a missing `nodePath` or `problems`. These values mirror the VS Code client's
+ * defaults; a user `initialization` deep-merges over them.
+ */
+const BUILTIN_INITIALIZATION: Record<string, Record<string, unknown>> = {
+  eslint: {
+    enable: true,
+    nodePath: null,
+    packageManager: "npm",
+    // The server expects the enum, not the VS Code array of language ids.
+    validate: "probe",
+    run: "onType",
+    options: {},
+    problems: { shortenToSingleLine: false },
+    quiet: false,
+    onIgnoredFiles: "off",
+    rulesCustomizations: [],
+    codeAction: {
+      disableRuleComment: { enable: true, location: "separateLine" },
+      showDocumentation: { enable: true },
+    },
+    codeActionOnSave: { mode: "all", rules: [] },
+    format: false,
+    useFlatConfig: true,
+    experimental: { useFlatConfig: true },
+    workingDirectory: { mode: "location" },
+    trace: "off",
+  },
+};
+
 const SEVERITIES: Record<string, number> = {
   error: 1,
   warning: 2,
@@ -247,14 +281,22 @@ function resolveServers(
       command,
       extensions,
       env: stringRecord(entry.env),
-      initialization: isRecord(entry.initialization) ? entry.initialization : undefined,
+      initialization: initializationFor(id, entry.initialization),
     });
   }
   return servers;
 }
 
-function normalizeExtensions(values: readonly string[]): string[] {
-  const seen = new Set<string>();
+function initializationFor(
+  id: string,
+  value: unknown,
+): Record<string, unknown> | undefined {
+  const defaults = BUILTIN_INITIALIZATION[id];
+  if (!defaults) return isRecord(value) ? value : undefined;
+  return mergeDeep(defaults, isRecord(value) ? value : {});
+}
+
+function normalizeExtensions(values: readonly string[]): string[] {  const seen = new Set<string>();
   for (const value of values) {
     const normalized = value.trim().toLowerCase();
     if (normalized) seen.add(normalized);
