@@ -7,6 +7,7 @@ import { DiagnosticsHub } from "./diagnostics.js";
 import { extensionKey, readInside } from "./paths.js";
 import type { ServerConfig, Settings } from "./settings.js";
 import { DocumentVersions, UriQueue, abortable } from "./sync.js";
+import { ProjectWatcher, type WatchedFileChange } from "./watcher.js";
 
 /** Servers answer pull requests quickly or not at all. */
 const PULL_TIMEOUT_MS = 3_000;
@@ -92,6 +93,7 @@ export class LspPool {
   readonly #versions = new DocumentVersions();
   readonly #queue = new UriQueue();
   readonly #hub = new DiagnosticsHub();
+  #watcher?: ProjectWatcher;
   #closed = false;
 
   constructor(settings: Settings, root: string) {
@@ -291,7 +293,11 @@ export class LspPool {
   ): Promise<unknown[]> {
     signal?.throwIfAborted();
     if (this.serversFor(file).length === 0) {
-      throw new Error("No LSP server available for this file type.");
+      const configured = this.#settings.servers.map((server) => server.id).join(", ") || "none";
+      throw new Error(
+        `No LSP server available for ${extensionKey(file)}. Configured servers: ${configured}. ` +
+          "Install a server for this language or add an explicit lsp entry (lsp:true only enables commands found on PATH).",
+      );
     }
     const targets = await abortable(this.#targets(file), signal);
     if (targets.length === 0) {
@@ -373,6 +379,7 @@ export class LspPool {
         current.client = client;
         this.#log(`${target.key} started`);
         this.#touch(current);
+        this.#watch();
         return client;
       })
       .catch(async (error) => {
@@ -397,6 +404,32 @@ export class LspPool {
     }, this.#settings.idleShutdownMs);
   }
 
+  /** External edits (scripts, git, formatters) reach the servers through one project watcher. */
+  #watch(): void {
+    if (this.#watcher) return;
+    this.#watcher = new ProjectWatcher(
+      this.#root,
+      (changes) => this.#broadcast(changes),
+      (message) => this.#log(message),
+    );
+    this.#watcher.start();
+  }
+
+  #broadcast(changes: WatchedFileChange[]): void {
+    // Reports for the old contents would otherwise outlive the change.
+    for (const change of changes) this.#hub.forget(change.uri);
+    let delivered = 0;
+    for (const entry of this.#entries.values()) {
+      const client = entry.client;
+      if (!client?.running) continue;
+      client.notify("workspace/didChangeWatchedFiles", { changes });
+      delivered++;
+    }
+    if (delivered > 0) {
+      this.#log(`notified ${delivered} server(s) of ${changes.length} external change(s)`);
+    }
+  }
+
   async #idle(entry: Entry): Promise<void> {
     entry.idle = undefined;
     const client = entry.client;
@@ -411,6 +444,8 @@ export class LspPool {
 
   async shutdown(): Promise<void> {
     this.#closed = true;
+    this.#watcher?.stop();
+    this.#watcher = undefined;
     const entries = [...this.#entries.values()];
     this.#entries.clear();
     await Promise.all(

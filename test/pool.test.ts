@@ -226,4 +226,54 @@ describe("LspPool", () => {
     const initializes = log(root).filter((entry) => entry.method === "initialize");
     expect(initializes).toHaveLength(2);
   });
+
+  test("forwards external changes to running servers", async () => {
+    const root = project();
+    const file = join(root, "src/app.ts");
+    const pool = new LspPool(
+      settings(root, { capabilities: { textDocumentSync: { save: true } } }),
+      root,
+    );
+    pools.push(pool);
+
+    await pool.sync(file);
+    writeFileSync(join(root, "src/other.ts"), "export const y = 2\n");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const notifications = log(root).filter(
+      (entry) => entry.method === "workspace/didChangeWatchedFiles",
+    );
+    expect(notifications.length).toBeGreaterThan(0);
+    const changes = notifications.flatMap((entry) => entry.params.changes as any[]);
+    expect(
+      changes.some(
+        (change) => change.uri.endsWith("/src/other.ts") && change.type === 1,
+      ),
+    ).toBe(true);
+  });
+
+  test("explains when no server matches the extension", async () => {
+    const root = project();
+    const file = join(root, "src/app.ts");
+    const base = settings(root, {});
+    const pool = new LspPool(
+      {
+        ...base,
+        servers: [
+          {
+            id: "csharp",
+            command: ["csharp-ls"],
+            extensions: [".cs"],
+            env: {},
+          },
+        ],
+      },
+      root,
+    );
+    pools.push(pool);
+
+    await expect(
+      pool.request(file, "definitionProvider", async () => null),
+    ).rejects.toThrow(/No LSP server available for \.ts\. Configured servers: csharp\./);
+  });
 });

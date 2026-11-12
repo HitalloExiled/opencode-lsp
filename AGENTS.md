@@ -30,6 +30,7 @@ src/jsonc.ts             JSONC parser (comments, trailing commas, BOM)
 src/protocol.ts          Content-Length framing + limits
 src/client.ts            JSON-RPC stdio client
 src/pool.ts              server pool, roots, document sync, pull diagnostics, navigation
+src/watcher.ts           recursive project watcher → workspace/didChangeWatchedFiles
 src/sync.ts              per-URI queue, document versions, abortable shared work
 src/diagnostics.ts       push store, quiet-period wait, merge of other-file reports
 src/paths.ts             project boundary, symlink-safe reads, tool path resolution
@@ -59,6 +60,9 @@ plugin.
   root), reused until idle shutdown or plugin unload.
 - **Document versions are monotonic and per URI.** Sync operations for one file
   are serialized; stale reports must be discarded, never merged.
+- **External changes are announced, not silently synced.** The watcher forwards
+  `workspace/didChangeWatchedFiles`; do not add a second sync path or a
+  filesystem poller.
 - **The plugin reads config files itself** because V2 does not expose the merged
   config to plugins. Keep the source order in sync with OpenCode.
 - **No runtime dependencies beyond zod** (tool schemas). Node built-ins only.

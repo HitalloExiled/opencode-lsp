@@ -134,7 +134,12 @@ export class LspClient {
         capabilities: {
           general: { positionEncodings: ["utf-16"] },
           window: { workDoneProgress: true },
-          workspace: { configuration: true, workspaceFolders: true, symbol: {} },
+          workspace: {
+            configuration: true,
+            workspaceFolders: true,
+            symbol: {},
+            didChangeWatchedFiles: { dynamicRegistration: true },
+          },
           textDocument: {
             synchronization: { dynamicRegistration: false, didSave: true },
             publishDiagnostics: { versionSupport: true },
