@@ -18,16 +18,23 @@ import type { Settings } from "./settings.js";
 
 type ToolResult = { content: string; metadata?: Record<string, unknown> };
 
+/** Catalog group label. Code Mode truncates this at ~119 characters. */
+export const LSP_NAMESPACE = {
+  name: "lsp",
+  description:
+    "Language-server navigation: definitions, references, hover, symbols, implementations, calls.",
+} as const;
+
 const path = z
   .string()
   .min(1)
-  .describe("Absolute or project-relative path to the file.");
-const line = z.number().int().min(1).describe("1-based line, as shown in editors.");
+  .describe("Absolute or project-relative path.");
+const line = z.number().int().min(1).describe("1-based line, as in editors.");
 const character = z
   .number()
   .int()
   .min(1)
-  .describe("1-based UTF-16 character offset, as shown in editors.");
+  .describe("1-based UTF-16 character offset.");
 
 const positionInput = z.object({ path, line, character });
 const symbolsInput = z.object({
@@ -35,8 +42,8 @@ const symbolsInput = z.object({
   scope: z
     .enum(["document", "workspace"])
     .default("document")
-    .describe("'document' lists this file's symbols; 'workspace' searches the project."),
-  query: z.string().optional().describe("Filter for scope=workspace; empty requests all symbols."),
+    .describe("'document' (default) or 'workspace'."),
+  query: z.string().optional().describe("Workspace filter; empty lists all."),
 });
 const callsInput = z.object({
   path,
@@ -45,7 +52,7 @@ const callsInput = z.object({
   direction: z
     .enum(["prepare", "incoming", "outgoing"])
     .default("incoming")
-    .describe("'prepare' lists the callable at the position; 'incoming'/'outgoing' follow it."),
+    .describe("prepare, incoming or outgoing."),
 });
 
 interface PositionInput {
@@ -210,7 +217,7 @@ function symbolsTool(pool: LspPool, root: string, settings: Settings) {
   return {
     name: "symbols",
     description:
-      "List symbols in a document, or project-wide symbols matching a query.",
+      "List symbols in a document, or project-wide matching a query.",
     input: symbolsInput,
     options: { namespace: "lsp", pinned: true, permission: "lsp" },
     async execute(input: z.infer<typeof symbolsInput>, ctx: ToolContext): Promise<ToolResult> {
@@ -249,7 +256,7 @@ function callsTool(pool: LspPool, root: string) {
   return {
     name: "calls",
     description:
-      "Inspect the call hierarchy at a position: the callable itself, its callers or its callees.",
+      "Call hierarchy at a position: the callable, its callers or its callees.",
     input: callsInput,
     options: { namespace: "lsp", permission: "lsp" },
     async execute(input: z.infer<typeof callsInput>, ctx: ToolContext): Promise<ToolResult> {
@@ -318,11 +325,7 @@ export function registerTools(
   settings: Settings,
 ) {
   return ctx.tool.transform((editor) => {
-    editor.namespace({
-      name: "lsp",
-      description:
-        "Language-server navigation: definitions, references, hover, symbols, implementations and call hierarchy. Diagnostics arrive with file edits.",
-    });
+    editor.namespace(LSP_NAMESPACE);
     // Add each tool separately so TypeScript keeps its own input schema.
     editor.add(definitionTool(pool, root));
     editor.add(referencesTool(pool, root));

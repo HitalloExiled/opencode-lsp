@@ -66,6 +66,10 @@ plugin.
 - **The plugin reads config files itself** because V2 does not expose the merged
   config to plugins. Keep the source order in sync with OpenCode.
 - **No runtime dependencies beyond zod** (tool schemas). Node built-ins only.
+- **Tool descriptions fit the Code Mode catalog budget.** The catalog truncates
+  a description around 119 characters, so keep it ≤110 with the load-bearing
+  sentence first; parameter descriptions stay ≤6 words. `test/tools.test.ts`
+  enforces both.
 - Code and log messages are English; there is no user-facing UI copy here.
 
 ## Git workflow

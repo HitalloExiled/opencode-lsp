@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { LspPool } from "../src/pool.js";
 import type { Settings } from "../src/settings.js";
-import { lspTools } from "../src/tools.js";
+import { LSP_NAMESPACE, lspTools } from "../src/tools.js";
 import { makeTempDir } from "./tmp.js";
 
 const roots: string[] = [];
@@ -152,5 +152,35 @@ describe("lsp tools", () => {
     const result = await definition.execute({ path: "src/app.ts", line: 1, character: 1 }, ctx);
     expect(result.content).toContain("No LSP server for this file could start.");
     expect(result.metadata).toEqual({ operation: "goToDefinition", error: true });
+  });
+});
+
+describe("catalog descriptions", () => {
+  // Code Mode truncates a tool description with an ellipsis around 119
+  // characters; anything past that never reaches the model.
+  const BUDGET = 110;
+
+  function registered() {
+    return lspTools({} as LspPool, "/tmp/project", settings());
+  }
+
+  test("every tool and the namespace fit the budget", () => {
+    expect(LSP_NAMESPACE.description.length).toBeLessThanOrEqual(BUDGET);
+    for (const item of registered()) {
+      expect(item.description.length, item.name).toBeLessThanOrEqual(BUDGET);
+    }
+  });
+
+  test("keeps every parameter description short enough for the catalog", () => {
+    for (const item of registered()) {
+      for (const [name, property] of Object.entries(item.input.shape)) {
+        const description = property.description ?? "";
+        expect(description.length, `${item.name}.${name}`).toBeGreaterThan(0);
+        expect(
+          description.split(/\s+/).filter(Boolean).length,
+          `${item.name}.${name}`,
+        ).toBeLessThanOrEqual(6);
+      }
+    }
   });
 });
