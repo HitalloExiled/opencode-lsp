@@ -1,13 +1,13 @@
 import { access, readFile } from "node:fs/promises";
 import { basename, dirname, join, relative } from "node:path";
-import { pathToFileURL } from "node:url";
+import { pathToFileURL, fileURLToPath } from "node:url";
 import { BUILTIN_SERVERS, languageIdFor } from "./catalog.js";
 import { LspClient, type Diagnostic } from "./client.js";
 import { DiagnosticsHub } from "./diagnostics.js";
 import { extensionKey, readInside } from "./paths.js";
 import type { ServerConfig, Settings } from "./settings.js";
 import { DocumentVersions, UriQueue, abortable } from "./sync.js";
-import { ProjectWatcher, type WatchedFileChange } from "./watcher.js";
+import { ProjectWatcher, DELETED, type WatchedFileChange } from "./watcher.js";
 
 /** Servers answer pull requests quickly or not at all. */
 const PULL_TIMEOUT_MS = 3_000;
@@ -438,6 +438,24 @@ export class LspPool {
       if (!client?.running) continue;
       client.notify("workspace/didChangeWatchedFiles", { changes });
       delivered++;
+    }
+    // A document the client opened is owned by the client: the server keeps
+    // the last didOpen/didChange text and ignores disk changes for it. Re-read
+    // and send didChange so edits made by scripts are not left stale.
+    for (const change of changes) {
+      let file: string;
+      try {
+        file = fileURLToPath(change.uri);
+      } catch {
+        continue;
+      }
+      if (change.type === DELETED) {
+        void this.close(file).catch(() => undefined);
+        continue;
+      }
+      const open = [...this.#entries.values()].some((entry) => entry.opened.has(change.uri));
+      if (!open) continue;
+      void this.sync(file).catch((error) => this.#log(`${file}: ${message(error)}`));
     }
     if (delivered > 0) {
       this.#log(`notified ${delivered} server(s) of ${changes.length} external change(s)`);

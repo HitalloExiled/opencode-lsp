@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LspPool } from "../src/pool.js";
@@ -257,6 +257,42 @@ describe("LspPool", () => {
       ).toBe(true);
     },
   );
+
+  test.skipIf(watchReason !== undefined)("re-syncs an open document after an external change", async () => {
+    const root = project();
+    const file = join(root, "src/app.ts");
+    const pool = new LspPool(
+      settings(root, { capabilities: { textDocumentSync: { save: true } } }),
+      root,
+    );
+    pools.push(pool);
+
+    await pool.sync(file);
+    writeFileSync(file, "export const x = 42\n");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const changes = log(root).filter((entry) => entry.method === "textDocument/didChange");
+    expect(changes.length).toBeGreaterThan(0);
+    const last = changes.at(-1);
+    expect(last.params.contentChanges[0].text).toBe("export const x = 42\n");
+    expect(last.params.textDocument.version).toBe(2);
+  });
+
+  test.skipIf(watchReason !== undefined)("closes an open document deleted externally", async () => {
+    const root = project();
+    const file = join(root, "src/app.ts");
+    const pool = new LspPool(
+      settings(root, { capabilities: { textDocumentSync: { save: true } } }),
+      root,
+    );
+    pools.push(pool);
+
+    await pool.sync(file);
+    unlinkSync(file);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    expect(log(root).some((entry) => entry.method === "textDocument/didClose")).toBe(true);
+  });
 
   test("explains when no server matches the extension", async () => {
     const root = project();

@@ -211,9 +211,10 @@ configuration in the project.
 - One server process per (server, detected root); servers start lazily, warm up
   on `read`, and shut down after `idleShutdownMs` without use.
 - Changes made outside the tools (scripts, git, formatters) are forwarded to
-  running servers as `workspace/didChangeWatchedFiles`. A server that ignores
-  them can stay stale until the file is read or edited; for bulk rewrites the
-  compiler remains the source of truth.
+  running servers as `workspace/didChangeWatchedFiles`; files the server has
+  open are re-read and sent as `didChange`, so a script edit does not leave a
+  stale buffer. A server that ignores both can stay stale until the file is
+  read or edited; for bulk rewrites the compiler remains the source of truth.
 - A server that fails to start, or sends a malformed protocol message, stays
   disabled until the plugin reloads.
 - Servers are **not** sandboxed: they inherit the OpenCode environment and OS

@@ -68,8 +68,8 @@ pure test to make a constrained environment green.
 - **Document versions are monotonic and per URI.** Sync operations for one file
   are serialized; stale reports must be discarded, never merged.
 - **External changes are announced, not silently synced.** The watcher forwards
-  `workspace/didChangeWatchedFiles`; do not add a second sync path or a
-  filesystem poller.
+  `workspace/didChangeWatchedFiles` and re-reads open documents as `didChange`;
+  do not add a second sync path or a filesystem poller.
 - **The plugin reads config files itself** because V2 does not expose the merged
   config to plugins. Keep the source order in sync with OpenCode.
 - **No runtime dependencies beyond zod** (tool schemas). Node built-ins only.
