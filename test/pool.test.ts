@@ -4,7 +4,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { LspPool } from "../src/pool.js";
 import type { Settings } from "../src/settings.js";
-import { makeTempDir } from "./tmp.js";
+import { fsWatcherUnavailable, makeTempDir } from "./tmp.js";
+
+// Needs a live watcher (inotify); skipped when the environment cannot provide one.
+const watchReason = fsWatcherUnavailable();
 
 const SERVER = fileURLToPath(new URL("./fake-server.ts", import.meta.url));
 
@@ -227,30 +230,33 @@ describe("LspPool", () => {
     expect(initializes).toHaveLength(2);
   });
 
-  test("forwards external changes to running servers", async () => {
-    const root = project();
-    const file = join(root, "src/app.ts");
-    const pool = new LspPool(
-      settings(root, { capabilities: { textDocumentSync: { save: true } } }),
-      root,
-    );
-    pools.push(pool);
+  test.skipIf(watchReason !== undefined)(
+    `forwards external changes to running servers${watchReason ? ` (skipped: ${watchReason})` : ""}`,
+    async () => {
+      const root = project();
+      const file = join(root, "src/app.ts");
+      const pool = new LspPool(
+        settings(root, { capabilities: { textDocumentSync: { save: true } } }),
+        root,
+      );
+      pools.push(pool);
 
-    await pool.sync(file);
-    writeFileSync(join(root, "src/other.ts"), "export const y = 2\n");
-    await new Promise((resolve) => setTimeout(resolve, 800));
+      await pool.sync(file);
+      writeFileSync(join(root, "src/other.ts"), "export const y = 2\n");
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
-    const notifications = log(root).filter(
-      (entry) => entry.method === "workspace/didChangeWatchedFiles",
-    );
-    expect(notifications.length).toBeGreaterThan(0);
-    const changes = notifications.flatMap((entry) => entry.params.changes as any[]);
-    expect(
-      changes.some(
-        (change) => change.uri.endsWith("/src/other.ts") && change.type === 1,
-      ),
-    ).toBe(true);
-  });
+      const notifications = log(root).filter(
+        (entry) => entry.method === "workspace/didChangeWatchedFiles",
+      );
+      expect(notifications.length).toBeGreaterThan(0);
+      const changes = notifications.flatMap((entry) => entry.params.changes as any[]);
+      expect(
+        changes.some(
+          (change) => change.uri.endsWith("/src/other.ts") && change.type === 1,
+        ),
+      ).toBe(true);
+    },
+  );
 
   test("explains when no server matches the extension", async () => {
     const root = project();

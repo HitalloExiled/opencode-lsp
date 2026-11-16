@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, watch } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,4 +25,30 @@ export function makeTempDir(prefix: string): string {
     }
   }
   throw last instanceof Error ? last : new Error("no writable temporary directory");
+}
+
+/**
+ * Why `fs.watch` cannot start here, if it cannot.
+ *
+ * `fs.watch` needs inotify instances. Containers and desktop sandboxes can
+ * exhaust them, failing even on an empty directory with EMFILE/ENOSPC; some
+ * kernels reject recursive watching with EINVAL. The runtime degrades
+ * gracefully in that case, so tests that need a live watcher skip instead of
+ * reporting an environment limit as a regression. Any other error is returned
+ * as undefined and left to fail loudly.
+ */
+export function fsWatcherUnavailable(): string | undefined {
+  const dir = makeTempDir("opencode-lsp-probe-");
+  try {
+    watch(dir).close();
+    return undefined;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "EMFILE" || code === "ENOSPC" || code === "EINVAL") {
+      return `fs.watch unavailable in this environment (${code})`;
+    }
+    return undefined;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }

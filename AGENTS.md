@@ -50,6 +50,13 @@ bun test test         # suite with the fake server; no real LSP needed
 From the parent repo, `bun run typecheck` and `bun test` also cover this
 plugin.
 
+`fs.watch` needs inotify instances, which containers and desktop sandboxes can
+exhaust (`EMFILE`/`ENOSPC`, or `EINVAL` where recursive watching is rejected).
+The watcher degrades gracefully at runtime, so the tests that need a live
+watcher skip with the reason instead of failing; `ignored()` is covered by a
+pure test that runs everywhere. Do not turn that skip into a pass or drop the
+pure test to make a constrained environment green.
+
 ## Hard rules
 
 - **Only paths inside the project are read or sent to a server.** Resolve

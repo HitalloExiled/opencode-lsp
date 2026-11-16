@@ -130,7 +130,8 @@ export class ProjectWatcher {
   }
 }
 
-function ignored(root: string, file: string): boolean {
+/** Paths the watcher never reports: dependencies, build output and editor noise. */
+export function ignored(root: string, file: string): boolean {
   const rel = relative(root, file);
   if (!rel || rel.startsWith("..")) return true;
   const segments = rel.split(sep);

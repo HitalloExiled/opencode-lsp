@@ -5,10 +5,18 @@ import {
   CHANGED,
   CREATED,
   DELETED,
+  ignored,
   ProjectWatcher,
   type WatchedFileChange,
 } from "../src/watcher.js";
-import { makeTempDir } from "./tmp.js";
+import { fsWatcherUnavailable, makeTempDir } from "./tmp.js";
+
+// A live watcher needs inotify instances; a sandbox can exhaust them. The
+// runtime degrades gracefully, so these tests skip with the reason instead of
+// reporting an environment limit as a failure.
+const watchReason = fsWatcherUnavailable();
+const withWatcher = test.skipIf(watchReason !== undefined);
+const title = (name: string) => (watchReason ? `${name} (skipped: ${watchReason})` : name);
 
 const roots: string[] = [];
 const watchers: ProjectWatcher[] = [];
@@ -38,7 +46,7 @@ async function waitFor(check: () => boolean, timeoutMs = 2_000): Promise<void> {
 }
 
 describe("ProjectWatcher", () => {
-  test("reports created, changed and deleted files", async () => {
+  withWatcher(title("reports created, changed and deleted files"), async () => {
     const { root, changes } = setup();
     const file = join(root, "src/app.ts");
     mkdirSync(join(root, "src"));
@@ -53,7 +61,7 @@ describe("ProjectWatcher", () => {
     await waitFor(() => changes.some((change) => change.type === DELETED));
   });
 
-  test("ignores dependency and build directories", async () => {
+  withWatcher(title("ignores dependency and build directories"), async () => {
     const { root, changes } = setup();
     mkdirSync(join(root, "node_modules/pkg"), { recursive: true });
     mkdirSync(join(root, "src"), { recursive: true });
@@ -65,10 +73,37 @@ describe("ProjectWatcher", () => {
     expect(changes.some((change) => change.uri.includes("node_modules"))).toBe(false);
   });
 
-  test("ignores log files", async () => {
+  withWatcher(title("ignores log files"), async () => {
     const { root, changes } = setup();
     writeFileSync(join(root, "server.log"), "x");
     await new Promise((resolve) => setTimeout(resolve, 150));
     expect(changes).toEqual([]);
+  });
+});
+
+describe("ignored", () => {
+  // The filter is the part worth testing without a live watcher: it decides
+  // what reaches the language servers.
+  const root = "/work";
+
+  test("keeps source files and drops dependencies and build output", () => {
+    expect(ignored(root, "/work/src/app.ts")).toBe(false);
+    expect(ignored(root, "/work/node_modules/pkg/index.js")).toBe(true);
+    expect(ignored(root, "/work/dist/app.js")).toBe(true);
+    expect(ignored(root, "/work/build/out.js")).toBe(true);
+    expect(ignored(root, "/work/.git/index")).toBe(true);
+  });
+
+  test("drops editor and temp noise", () => {
+    expect(ignored(root, "/work/src/app.ts~")).toBe(true);
+    expect(ignored(root, "/work/src/app.ts.swp")).toBe(true);
+    expect(ignored(root, "/work/src/.DS_Store")).toBe(true);
+    expect(ignored(root, "/work/server.log")).toBe(true);
+    expect(ignored(root, "/work/state.lock")).toBe(true);
+  });
+
+  test("drops the root itself and anything outside it", () => {
+    expect(ignored(root, "/work")).toBe(true);
+    expect(ignored(root, "/elsewhere/file.ts")).toBe(true);
   });
 });
